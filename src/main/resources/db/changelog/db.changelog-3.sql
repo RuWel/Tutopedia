@@ -1,0 +1,1 @@
+CREATE TABLE files (id BIGINT, tid BIGINT, type VARCHAR(255), tfile OID, PRIMARY KEY (id))
