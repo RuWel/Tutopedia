@@ -31,6 +31,7 @@ import com.tutopedia.model.File;
 import com.tutopedia.model.Tutorial;
 import com.tutopedia.model.TutorialFileInfo;
 import com.tutopedia.repository.TutorialRepository;
+import com.tutopedia.service.EmailService;
 import com.tutopedia.service.FilePublishService;
 import com.tutopedia.service.FileStorageService;
 
@@ -51,6 +52,9 @@ public class TutorialController {
 	@Autowired
 	private FilePublishService filePublishService;
 
+	@Autowired
+	private EmailService emailService;
+
 	private String getLogCommand(String command) {
 		Date currentDate = new Date();
 
@@ -68,7 +72,7 @@ public class TutorialController {
 		return ("Hello ... This is a test for springboot app");	
 	}
 	
-	@PostMapping("/tutorials")
+	@PostMapping("/tutorial/create")
 	public ResponseEntity<Tutorial> createTutorial(@ModelAttribute TutorialFileInfo tutorialFileInfo) {
 		try {
 			@SuppressWarnings("null")
@@ -86,28 +90,35 @@ public class TutorialController {
 			System.out.println(getLogCommand("Upload File:" ) + "RESULT: " + storedFile.getId());
 
 			return (new ResponseEntity<>(result, HttpStatus.CREATED));
-			
 		} catch (Exception e) {
 			return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
 		}
 	}
 	
-	@GetMapping("/tutorials")
+	@GetMapping("/tutorials/load")
 	public ResponseEntity<List<Tutorial>> getAllTutorials() {
 		List<Tutorial> result = new ArrayList<>();
 
 		System.out.println(getLogCommand("GetAllTutorials"));
-		
-		tutorialRepository.findAll().forEach(result::add);
-		
-		System.out.println(getLogCommand("GetAllTutorials: RESULT: " + result.size()));
 
-		Collections.sort(result, Comparator.comparingLong(Tutorial::getId));
+		try {
+			tutorialRepository.findAll().forEach(result::add);
 		
-		return new ResponseEntity<>(result, HttpStatus.OK);
+			System.out.println(getLogCommand("GetAllTutorials: RESULT: " + result.size()));
+
+			Collections.sort(result, Comparator.comparingLong(Tutorial::getId));
+		
+			return new ResponseEntity<>(result, HttpStatus.OK);
+		} catch (Exception e) {
+			List<Tutorial> errors = new ArrayList<Tutorial>();
+			
+			errors.add(new CustomError("Internal server error"));
+			
+			return (new ResponseEntity<>(errors, HttpStatus.INTERNAL_SERVER_ERROR));
+		}
 	}
 	
-	@PutMapping("/tutorials/{id}")
+	@PutMapping("/tutorial/update/{id}")
 	public ResponseEntity<Tutorial> updateTutorial(@PathVariable("id") Long id, @Valid @RequestBody Tutorial tutorial) {
 		try {
 			Optional<Tutorial> result = tutorialRepository.findById(id);
@@ -133,7 +144,7 @@ public class TutorialController {
 	}
 
 	@SuppressWarnings("null")
-	@PutMapping("/tutorials/file/{id}")
+	@PutMapping("/tutorial/update/file/{id}")
 	public ResponseEntity<Tutorial> updateTutorialWithFile(@PathVariable("id") Long id, @ModelAttribute TutorialFileInfo tutorialFileInfo) {
 		try {
 			Optional<Tutorial> result = tutorialRepository.findById(id);
@@ -163,7 +174,7 @@ public class TutorialController {
 		}
 	}
 
-	@DeleteMapping("/tutorials/delete/{id}")
+	@DeleteMapping("/tutorial/delete/{id}")
 	public ResponseEntity<Tutorial> deleteTutorial(@PathVariable("id") Long id) {
 		try {
 			System.out.println(getLogCommand("DeleteTutorial: " + id));
@@ -175,6 +186,25 @@ public class TutorialController {
 		}
 	}
 	
+	@DeleteMapping("/tutorials/delete/ids")
+	@Transactional
+	public ResponseEntity<Tutorial> deleteTutorials(@RequestParam(required = true) Map<String,Long> ids) {
+		try {
+			System.out.println(getLogCommand("DeleteTutorials: " + ids));
+
+			List<Tutorial> tutorialsToDelete = tutorialRepository.findAllById(ids.values());
+			
+			for (Tutorial tutorial : tutorialsToDelete) {
+				tutorialRepository.deleteById(tutorial.getId());
+			}
+
+			return (new ResponseEntity<>(HttpStatus.NO_CONTENT));
+		} catch (Exception e) {
+			System.out.println(getLogCommand("Delete Tutorial Exception " + e));
+			return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
+		}
+	}
+	
 	// delete all tutorials
 	@DeleteMapping("/tutorials/delete")
 	@Transactional
@@ -182,7 +212,6 @@ public class TutorialController {
 		try {
 			System.out.println(getLogCommand("Delete All Non-Published Tutorials"));
 	
-//			tutorialRepository.deleteAll();
 			Long deleted = tutorialRepository.deleteByPublished(false);
 			System.out.println("Deleted " + deleted + " entitites");
 			return (new ResponseEntity<>(HttpStatus.OK));
@@ -192,7 +221,7 @@ public class TutorialController {
 		}
 	}
 
-	@GetMapping("/tutorials/find/{id}")
+	@GetMapping("/tutorial/find/{id}")
 	public ResponseEntity<Tutorial> findTutorialByID (@PathVariable("id") Long id) {
 		try {
 			System.out.println(getLogCommand("Find Tutorial: " + id));
@@ -273,16 +302,24 @@ public class TutorialController {
 		}
 	}
 
-	@PutMapping("/tutorials/publish/{id}")
+	@PutMapping("/tutorial/publish/{id}")
 	public ResponseEntity<Tutorial> publishTutorial (@PathVariable("id") Long id) {
 		try {
 			System.out.println(getLogCommand("Publish Tutorial: " + id));
 			
-			tutorialRepository.publishTutorial(true, id);
+			Optional<Tutorial> tutorial = tutorialRepository.findById(id);
+			if (tutorial.isPresent()) {
+				tutorialRepository.publishTutorial(true, id);
+				
+				try {
+					filePublishService.publishFile(tutorial.get());
+					return (new ResponseEntity<>(null, HttpStatus.OK));
+				} catch (Exception e) {
+					System.out.println(getLogCommand("Publish File Exception: " + e));
+				}
+			}
 			
-			filePublishService.publishFile(id);
-			
-			return (new ResponseEntity<>(null, HttpStatus.OK));
+			return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
 		} catch (Exception e) {
 			System.out.println(getLogCommand("Publish Tutorial Exception: " + e));
 			return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
@@ -298,14 +335,37 @@ public class TutorialController {
 			
 			tutorialRepository.publishAllTutorials();
 			
-			for (Tutorial tutorial : unpublished) {
-				filePublishService.publishFile(tutorial.getId());
-			}
+			try {
+				filePublishService.publishFiles(unpublished);
 			
-			return (new ResponseEntity<>(null, HttpStatus.OK));
+				return (new ResponseEntity<>(null, HttpStatus.OK));
+			} catch (Exception e) {
+				System.out.println(getLogCommand("Publish All Tutorials Exception: " + e));
+				return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
+			}
 		} catch (Exception e) {
 			System.out.println(getLogCommand("Publish All Tutorials Exception: " + e));
 			return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
 		}
 	}
+
+	@PutMapping("/tutorials/publish/ids")
+	public ResponseEntity<Tutorial> publishTutorials(@RequestParam(required = true) Map<String,Long> ids) {
+		try {
+			System.out.println(getLogCommand("PublishTutorials: " + ids));
+
+			List<Tutorial> tutorialsToPublish = tutorialRepository.findAllById(ids.values());
+			
+			for (Tutorial tutorial : tutorialsToPublish) {
+				tutorialRepository.publishTutorial(true, tutorial.getId());
+			}
+					
+			filePublishService.publishFiles(tutorialsToPublish);
+			
+			return (new ResponseEntity<>(HttpStatus.OK));
+		} catch (Exception e) {
+			return (new ResponseEntity<>(new CustomError("Internal server error"), HttpStatus.INTERNAL_SERVER_ERROR));
+		}
+	}
+	
 }
