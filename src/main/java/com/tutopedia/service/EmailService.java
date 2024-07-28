@@ -81,17 +81,23 @@ public class EmailService {
 
 		return multipart;
 	}
-	
-	public void sendEmail(String from, String to, String tutorialTitle, TutorialFileData fileData) throws MessagingException {
-		System.out.println("Send Email");
-		System.out.println("Title: " + tutorialTitle + " : " + fileData.getFilename() + " (" + fileData.getTutorial().length + ")");
-		
+
+	private Session getSession() {
 		Session session = Session.getInstance(prop, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(username, password);
             }
         });
+		
+		return session;
+	}
+	
+	public void sendEmail(String from, String to, String tutorialTitle, TutorialFileData fileData) throws MessagingException {
+		System.out.println("Send Email");
+		System.out.println("Title: " + tutorialTitle + " : " + fileData.getFilename() + " (" + fileData.getTutorial().length + ")");
+		
+		Session session = getSession();
 		
 		Message mimeMessage = createMimeMessage(session, from, to, "Publication for " + tutorialTitle);
 
@@ -104,12 +110,15 @@ public class EmailService {
 
 	public void sendEmail(String from, String to, Map<String, TutorialFileData> filesToSend) throws MessagingException {
 		System.out.println("Send Email with multiple files");
-		
+
+		Session session = getSession();
+
 		for (String tutorialTitle : filesToSend.keySet()) {
 			TutorialFileData data = filesToSend.get(tutorialTitle);
 			
 			System.out.println("Title: " + tutorialTitle + " : " + data.getFilename() + " (" + data.getTutorial().length + ")");
 		}
+		
 		String message = filesToSend.keySet().stream().map(s -> {
 			String value = filesToSend.get(s).getFilename();
 			return "'" + s + "' : '" + value + "'";
@@ -117,13 +126,7 @@ public class EmailService {
 
 		System.out.println(message);
 		
-/*		MimeMessage mimeMessage = createMimeMessage(from, to, "Different publications");
-
-		String message = filesToSend.keySet().stream().map(s -> {
-			String value = filesToSend.get(s).getFilename();
-			return "'" + s + "' : '" + value + "'";
-		}).collect(Collectors.joining("\n"));
-
+		Message mimeMessage = createMimeMessage(session, from, to, "Different publications");
 
 		Multipart multipart = null;
 		
@@ -132,6 +135,6 @@ public class EmailService {
 		}
 
 		mimeMessage.setContent(multipart);
-		mailSender.send(mimeMessage); */
+		Transport.send(mimeMessage);
 	}
 }
