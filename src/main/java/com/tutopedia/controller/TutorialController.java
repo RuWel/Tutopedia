@@ -112,6 +112,8 @@ public class TutorialController {
 		} catch (Exception e) {
 			List<Tutorial> errors = new ArrayList<Tutorial>();
 			
+			System.out.println("ERROR: " + e.getMessage());
+			
 			errors.add(new CustomError("Internal server error"));
 			
 			return (new ResponseEntity<>(errors, HttpStatus.INTERNAL_SERVER_ERROR));
