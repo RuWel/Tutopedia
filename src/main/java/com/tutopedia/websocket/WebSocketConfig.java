@@ -13,16 +13,16 @@ import com.tutopedia.configuration.AppProperties;
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
-	@Autowired
-	private AppProperties appProperties;
+	// @Autowired
+	// private AppProperties appProperties;
 
 	@Override
     public void registerWebSocketHandlers(@NonNull WebSocketHandlerRegistry registry) {
-        registry.addHandler(webSocketHandler(), "/ticker").setAllowedOrigins("*");
+//        registry.addHandler(webSocketHandler(), "/ticker").setAllowedOrigins("*");
     }
 
-    @Bean
-    WebSocketHandler webSocketHandler() {
-        return new WebSocketHandler(appProperties.getSeconds());
-    }
+    // @Bean
+    // WebSocketHandler webSocketHandler() {
+    //     return new WebSocketHandler(appProperties.getSeconds());
+    // }
 }

@@ -4,8 +4,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import com.tutopedia.model.TutorialFileData;
@@ -28,8 +26,8 @@ import jakarta.mail.util.ByteArrayDataSource;
 
 @Service
 public class EmailService {
-	@Autowired
-	private JavaMailSender mailSender;
+	// @Autowired
+	// private JavaMailSender mailSender;
 
 	private String username;
     private String password;
